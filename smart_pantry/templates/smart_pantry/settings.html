@@ -1,0 +1,177 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Settings | Smart Pantry</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+      body {
+        background-color: #e8f5e8;
+      }
+      .navbar {
+        background-color: #4caf50;
+      }
+      .navbar-brand {
+        font-weight: bold;
+        color: white !important;
+      }
+      .nav-link {
+        color: white !important;
+      }
+      .nav-link:hover {
+        color: #c8e6c9 !important;
+      }
+      .card {
+        border: none;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+      .settings-group {
+        padding: 1.5rem;
+        border-bottom: 1px solid #e0e0e0;
+      }
+      .settings-group:last-child {
+        border-bottom: none;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+      <div class="container">
+        <a class="navbar-brand" href="{% url 'smart_pantry:home' %}">
+          <i class="bi bi-basket"></i> Smart Pantry
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav ms-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'smart_pantry:home' %}"><i class="bi bi-house"></i> Home</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'smart_pantry:dashboard_new' %}"><i class="bi bi-graph-up"></i> Dashboard</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'smart_pantry:account' %}"><i class="bi bi-person"></i> Account</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'smart_pantry:settings' %}"><i class="bi bi-gear"></i> Settings</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'smart_pantry:logout' %}"><i class="bi bi-box-arrow-right"></i> Logout</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mb-5">
+      <div class="row">
+        <div class="col-md-8 offset-md-2">
+          <h1 class="mb-4"><i class="bi bi-gear"></i> App Settings</h1>
+
+          <!-- Settings Card -->
+          <div class="card">
+            <!-- Notifications Settings -->
+            <div class="settings-group">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <h5 class="mb-1"><i class="bi bi-bell"></i> Expiry Notifications</h5>
+                  <p class="text-muted mb-0">Receive alerts for items expiring soon</p>
+                </div>
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="notifySwitch" checked>
+                </div>
+              </div>
+            </div>
+
+            <!-- Voice Assistant Settings -->
+            <div class="settings-group">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <h5 class="mb-1"><i class="bi bi-mic"></i> Voice Assistant</h5>
+                  <p class="text-muted mb-0">Enable voice commands in English, Hindi, and Telugu</p>
+                </div>
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="voiceSwitch" checked>
+                </div>
+              </div>
+            </div>
+
+            <!-- Language Settings -->
+            <div class="settings-group">
+              <div>
+                <h5 class="mb-3"><i class="bi bi-globe"></i> Language</h5>
+                <div class="row">
+                  <div class="col-md-6">
+                    <select class="form-select">
+                      <option value="en">English</option>
+                      <option value="hi">हिन्दी (Hindi)</option>
+                      <option value="te">తెలుగు (Telugu)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Theme Settings -->
+            <div class="settings-group">
+              <div>
+                <h5 class="mb-3"><i class="bi bi-palette"></i> Theme</h5>
+                <div class="btn-group" role="group">
+                  <input type="radio" class="btn-check" name="theme" id="lightTheme" value="light" checked>
+                  <label class="btn btn-outline-primary" for="lightTheme">Light</label>
+
+                  <input type="radio" class="btn-check" name="theme" id="darkTheme" value="dark">
+                  <label class="btn btn-outline-primary" for="darkTheme">Dark</label>
+
+                  <input type="radio" class="btn-check" name="theme" id="autoTheme" value="auto">
+                  <label class="btn btn-outline-primary" for="autoTheme">Auto</label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Privacy Settings -->
+            <div class="settings-group">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <h5 class="mb-1"><i class="bi bi-shield-lock"></i> Data Privacy</h5>
+                  <p class="text-muted mb-0">Your data is stored securely and encrypted</p>
+                </div>
+                <span class="badge bg-success">Secure</span>
+              </div>
+            </div>
+
+            <!-- About Section -->
+            <div class="settings-group">
+              <h5 class="mb-3"><i class="bi bi-info-circle"></i> About</h5>
+              <p class="mb-1"><strong>App Version:</strong> 1.0.0</p>
+              <p class="mb-1"><strong>Last Updated:</strong> April 2026</p>
+              <p class="text-muted mb-0">Smart Pantry - Reduce Food Waste, Save Money</p>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="settings-group">
+              <div class="d-flex gap-2">
+                <button class="btn btn-primary"><i class="bi bi-download"></i> Export Data</button>
+                <button class="btn btn-outline-danger"><i class="bi bi-trash"></i> Delete Account</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Save Button -->
+          <div class="mt-4">
+            <button class="btn btn-success btn-lg w-100"><i class="bi bi-check-circle"></i> Save Settings</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>

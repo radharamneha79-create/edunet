@@ -265,7 +265,11 @@
             'rice': 'Pantry',
             'pasta': 'Pantry',
             'frozen': 'Frozen',
-            'ice cream': 'Frozen'
+            'ice cream': 'Frozen',
+            'snacks': 'Snacks',
+            'chips': 'Snacks',
+            'cookies': 'Snacks',
+            'nuts': 'Snacks'
           }
         },
         'hi-IN': {
@@ -295,7 +299,11 @@
             'चावल': 'Pantry',
             'पास्ता': 'Pantry',
             'फ्रोजन': 'Frozen',
-            'आइसक्रीम': 'Frozen'
+            'आइसक्रीम': 'Frozen',
+            'स्नैक्स': 'Snacks',
+            'चिप्स': 'Snacks',
+            'कुकीज': 'Snacks',
+            'मेवे': 'Snacks'
           }
         },
         'te-IN': {
@@ -324,7 +332,10 @@
             'వరిగా': 'Pantry',
             'పాస్తా': 'Pantry',
             'ఫ్రోజెన్': 'Frozen',
-            'ఐస్ క్రీమ్': 'Frozen'
+            'ఐస్ క్రీమ్': 'Frozen',
+            'స్నాక్స్': 'Snacks',
+            'చిప్‍్స్': 'Snacks',
+            'కుకీలు': 'Snacks'
           }
         }
       };
@@ -498,17 +509,42 @@
       }
 
       function parseAddCommand(transcript, lang) {
-        const words = transcript.split(' ');
+        const words = transcript.split(/\s+/);
         let quantity = 1;
         let itemName = '';
         let category = '';
+        
+        // Map for unit conversions
+        const unitMap = {
+          'liter': 'g', 'liters': 'g', 'l': 'g', 'lt': 'g',
+          'cup': 'count', 'cups': 'count',
+          'piece': 'count', 'pieces': 'count', 'pcs': 'count',
+          'kilogram': 'kg', 'kilograms': 'kg', 'kg': 'kg', 'kilo': 'kg',
+          'gram': 'g', 'grams': 'g',
+          'ounce': 'oz', 'ounces': 'oz', 'oz': 'oz'
+        };
 
-        // Extract quantity (first number found)
-        for (let i = 0; i < words.length; i++) {
-          if (!isNaN(words[i]) && words[i].trim() !== '') {
-            quantity = parseFloat(words[i]);
-            words.splice(i, 1);
-            break;
+        // Extract quantity with unit modifiers (e.g., "2 liters of", "3 cups of")
+        for (let i = 0; i < words.length - 1; i++) {
+          const num = parseFloat(words[i]);
+          if (!isNaN(num) && num > 0) {
+            quantity = num;
+            
+            // Check for unit modifiers
+            const nextWord = words[i + 1].toLowerCase();
+            if (unitMap[nextWord]) {
+              // Remove quantity and unit from words
+              words.splice(i, 2);
+              break;
+            } else if (words[i + 2] && words[i + 2].toLowerCase() === 'of') {
+              // Handle "2 liters of milk"
+              words.splice(i, 3);
+              break;
+            } else {
+              // Just remove the quantity
+              words.splice(i, 1);
+              break;
+            }
           }
         }
 
@@ -539,6 +575,16 @@
       }
 
       function parseRemoveCommand(transcript, lang) {
+        // Remove "of" and "the" from transcript
+        const cleanTranscript = transcript.replace(/\b(of|the)\b/gi, '').trim();
+        
+        // Extract any leading numbers
+        const numberMatch = cleanTranscript.match(/^(\d+)\s+/);
+        if (numberMatch) {
+          // Remove the leading number
+          transcript = cleanTranscript.substring(numberMatch[0].length);
+        }
+        
         const itemName = transcript.trim().replace(/\b\w/g, l => l.toUpperCase());
         return itemName || null;
       }

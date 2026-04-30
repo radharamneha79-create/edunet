@@ -276,3 +276,123 @@ def otp_login_view(request):
         "otp_sent": otp_sent,
         "message": message,
     })
+
+
+@login_required(login_url=reverse_lazy("smart_pantry:login"))
+def home_view(request):
+    """Home page with overview and quick actions."""
+    user = request.user
+    items = PantryItem.objects.filter(user=user)
+    today = date.today()
+    
+    expiry_alerts = items.filter(
+        expiration_date__isnull=False,
+        expiration_date__lte=today + timedelta(days=7)
+    ).count()
+    
+    total_items = items.count()
+    
+    context = {
+        'total_items': total_items,
+        'expiry_alerts': expiry_alerts,
+    }
+    return render(request, "smart_pantry/home.html", context)
+
+
+@login_required(login_url=reverse_lazy("smart_pantry:login"))
+def settings_view(request):
+    """Settings page for app configuration."""
+    profile = request.user.profile
+    context = {
+        'profile': profile,
+    }
+    return render(request, "smart_pantry/settings.html", context)
+
+
+@login_required(login_url=reverse_lazy("smart_pantry:login"))
+def dashboard_view(request):
+    """Enhanced dashboard showing item statistics and actions."""
+    user = request.user
+    items = PantryItem.objects.filter(user=user)
+    today = date.today()
+
+    if request.method == 'POST':
+        quick_add_form = QuickAddForm(request.POST, request.FILES)
+        if quick_add_form.is_valid():
+            item = quick_add_form.save(commit=False)
+            item.user = user
+            item.save()
+            return redirect(reverse("smart_pantry:dashboard_new"))
+    else:
+        quick_add_form = QuickAddForm()
+
+    # Calculate expiration zones
+    red_zone_items = items.filter(expiration_date__lt=today + timedelta(days=2))
+    amber_zone_items = items.filter(
+        expiration_date__gte=today + timedelta(days=2),
+        expiration_date__lte=today + timedelta(days=5)
+    )
+    green_zone_items = items.filter(expiration_date__gt=today + timedelta(days=5))
+
+    categories_count = {}
+    inventory_by_category = {}
+    low_stock_items = []
+
+    low_stock_thresholds = {
+        'Produce': 3,
+        'Dairy': 2,
+        'Meat': 2,
+        'Pantry': 4,
+        'Frozen': 2,
+        'Snacks': 3,
+    }
+
+    for item in items:
+        categories_count[item.category] = categories_count.get(item.category, 0) + 1
+        inventory_by_category.setdefault(item.category, []).append(item)
+        threshold = low_stock_thresholds.get(item.category, 2)
+        try:
+            quantity_value = float(item.quantity)
+        except Exception:
+            quantity_value = 0
+        if quantity_value <= threshold:
+            low_stock_items.append(item)
+
+    max_category_count = max(categories_count.values()) if categories_count else 1
+    categories_data = [
+        {
+            'category': category,
+            'count': count,
+            'percent': min(100, int((count / max_category_count) * 100))
+        }
+        for category, count in sorted(categories_count.items())
+    ]
+
+    categorized_inventory = []
+    for category, category_items in sorted(inventory_by_category.items()):
+        total_quantity = sum(float(item.quantity) for item in category_items)
+        units = sorted({item.unit for item in category_items})
+        categorized_inventory.append({
+            'category': category,
+            'count': len(category_items),
+            'total_quantity': total_quantity,
+            'units': ', '.join(units),
+            'items': sorted(category_items, key=lambda x: x.name),
+        })
+
+    context = {
+        'total_items': items.count(),
+        'low_stock_count': len(low_stock_items),
+        'low_stock_items': low_stock_items,
+        'low_stock_item_ids': [item.id for item in low_stock_items],
+        'red_zone_count': red_zone_items.count(),
+        'amber_zone_count': amber_zone_items.count(),
+        'green_zone_count': green_zone_items.count(),
+        'red_zone_items': red_zone_items,
+        'amber_zone_items': amber_zone_items,
+        'green_zone_items': green_zone_items,
+        'categories_data': categories_data,
+        'categorized_inventory': categorized_inventory,
+        'quick_add_form': quick_add_form,
+    }
+    return render(request, "smart_pantry/dashboard_new.html", context)

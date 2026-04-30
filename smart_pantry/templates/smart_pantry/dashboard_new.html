@@ -1,0 +1,391 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dashboard | Smart Pantry</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+      body {
+        background-color: #e8f5e8;
+      }
+      .navbar {
+        background-color: #4caf50;
+      }
+      .navbar-brand {
+        font-weight: bold;
+        color: white !important;
+      }
+      .nav-link {
+        color: white !important;
+      }
+      .nav-link:hover {
+        color: #c8e6c9 !important;
+      }
+      .card {
+        border: none;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+      .stat-card {
+        text-align: center;
+        padding: 1.5rem;
+      }
+      .stat-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin: 0.5rem 0;
+      }
+      .red-zone { background-color: #ffebee; border-left: 4px solid #f44336; }
+      .amber-zone { background-color: #fff3e0; border-left: 4px solid #ff9800; }
+      .green-zone { background-color: #e8f5e9; border-left: 4px solid #4caf50; }
+      .item-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        border-bottom: 1px solid #eee;
+      }
+      .item-row:last-child {
+        border-bottom: none;
+      }
+      .remove-btn {
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+      <div class="container">
+        <a class="navbar-brand" href="{% url 'smart_pantry:home' %}">
+          <i class="bi bi-basket"></i> Smart Pantry
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav ms-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'smart_pantry:home' %}"><i class="bi bi-house"></i> Home</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'smart_pantry:dashboard_new' %}"><i class="bi bi-graph-up"></i> Dashboard</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'smart_pantry:account' %}"><i class="bi bi-person"></i> Account</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'smart_pantry:settings' %}"><i class="bi bi-gear"></i> Settings</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'smart_pantry:logout' %}"><i class="bi bi-box-arrow-right"></i> Logout</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mb-5">
+      <h1 class="mb-4"><i class="bi bi-graph-up"></i> Smart Dashboard</h1>
+
+      <!-- Statistics Row -->
+      <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+          <div class="card stat-card">
+            <div class="text-success">
+              <i class="bi bi-box" style="font-size: 2rem;"></i>
+            </div>
+            <div class="stat-number text-success">{{ total_items }}</div>
+            <p class="text-muted mb-0">Total Items</p>
+          </div>
+        </div>
+        <div class="col-md-3 mb-3">
+          <div class="card stat-card">
+            <div class="text-danger">
+              <i class="bi bi-exclamation-circle" style="font-size: 2rem;"></i>
+            </div>
+            <div class="stat-number text-danger">{{ red_zone_count }}</div>
+            <p class="text-muted mb-0">Urgent (< 48 hrs)</p>
+          </div>
+        </div>
+        <div class="col-md-3 mb-3">
+          <div class="card stat-card">
+            <div class="text-warning">
+              <i class="bi bi-clock" style="font-size: 2rem;"></i>
+            </div>
+            <div class="stat-number text-warning">{{ amber_zone_count }}</div>
+            <p class="text-muted mb-0">Expiring Soon</p>
+          </div>
+        </div>
+        <div class="col-md-3 mb-3">
+          <div class="card stat-card">
+            <div class="text-success">
+              <i class="bi bi-check-circle" style="font-size: 2rem;"></i>
+            </div>
+            <div class="stat-number text-success">{{ green_zone_count }}</div>
+            <p class="text-muted mb-0">Fresh Stock</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+          <div class="card stat-card">
+            <div class="text-danger">
+              <i class="bi bi-bell" style="font-size: 2rem;"></i>
+            </div>
+            <div class="stat-number text-danger">{{ low_stock_count }}</div>
+            <p class="text-muted mb-0">Low Stock Alerts</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Items by Category -->
+      <div class="row mb-4">
+        <div class="col-md-12">
+          <div class="card">
+            <div class="card-header bg-success text-white">
+              <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Items by Category</h5>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                {% for category_data in categories_data %}
+                <div class="col-md-6 mb-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span>{{ category_data.category }}</span>
+                    <span class="badge bg-info">{{ category_data.count }}</span>
+                  </div>
+                  <div class="progress mt-2" style="height: 8px;">
+                    <div class="progress-bar" role="progressbar" style="width: {{ category_data.percent }}%"></div>
+                  </div>
+                </div>
+                {% empty %}
+                <div class="col-md-12">
+                  <p class="text-muted text-center">No items yet. Add some to get started!</p>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Categorized Inventory -->
+      <div class="row mb-4">
+        <div class="col-md-12">
+          <div class="card">
+            <div class="card-header bg-info text-white">
+              <h5 class="mb-0"><i class="bi bi-list-ul"></i> Categorized Inventory</h5>
+            </div>
+            <div class="card-body">
+              {% for category_group in categorized_inventory %}
+              <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <div>
+                    <strong>{{ category_group.category }}</strong>
+                    <span class="text-muted">({{ category_group.count }} items, {{ category_group.total_quantity }} {{ category_group.units }})</span>
+                  </div>
+                  <span class="badge bg-secondary">{{ category_group.count }} items</span>
+                </div>
+                {% for item in category_group.items %}
+                <div class="item-row">
+                  <div>
+                    <p class="mb-1"><strong>{{ item.name }}</strong></p>
+                    <small class="text-muted">{{ item.quantity }} {{ item.unit }} • Expires {{ item.expiration_date }}</small>
+                  </div>
+                  <div class="text-end">
+                    {% if item.id in low_stock_item_ids %}
+                    <span class="badge bg-danger">Low Stock</span>
+                    {% else %}
+                    <span class="badge bg-success">Healthy</span>
+                    {% endif %}
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+              {% empty %}
+              <p class="text-muted mb-0">No categorized inventory available yet.</p>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Red Zone Items -->
+      <div class="row mb-4">
+        <div class="col-md-12">
+          <div class="card red-zone">
+            <div class="card-header" style="border: none; background: transparent; padding: 1rem;">
+              <h5 class="mb-0"><i class="bi bi-exclamation-circle"></i> Red Zone - Expiring Within 48 Hours</h5>
+            </div>
+            <div class="card-body" style="padding: 0;">
+              {% for item in red_zone_items %}
+              <div class="item-row">
+                <div>
+                  <p class="mb-1"><strong>{{ item.name }}</strong></p>
+                  <small class="text-muted">{{ item.category }} • {{ item.quantity }} {{ item.unit }}</small>
+                </div>
+                <div>
+                  <span class="badge bg-danger">Expires: {{ item.expiration_date }}</span>
+                  <button class="btn btn-sm btn-outline-danger ms-2" onclick="removeItem('{{ item.name }}')">
+                    <i class="bi bi-trash"></i> Remove
+                  </button>
+                </div>
+              </div>
+              {% empty %}
+              <div class="item-row">
+                <p class="text-muted mb-0">No items in red zone. Great job!</p>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Amber Zone Items -->
+      <div class="row mb-4">
+        <div class="col-md-12">
+          <div class="card amber-zone">
+            <div class="card-header" style="border: none; background: transparent; padding: 1rem;">
+              <h5 class="mb-0"><i class="bi bi-clock"></i> Amber Zone - Expiring in 3-5 Days</h5>
+            </div>
+            <div class="card-body" style="padding: 0;">
+              {% for item in amber_zone_items %}
+              <div class="item-row">
+                <div>
+                  <p class="mb-1"><strong>{{ item.name }}</strong></p>
+                  <small class="text-muted">{{ item.category }} • {{ item.quantity }} {{ item.unit }}</small>
+                </div>
+                <div>
+                  <span class="badge bg-warning">Expires: {{ item.expiration_date }}</span>
+                  <button class="btn btn-sm btn-outline-warning ms-2" onclick="removeItem('{{ item.name }}')">
+                    <i class="bi bi-trash"></i> Remove
+                  </button>
+                </div>
+              </div>
+              {% empty %}
+              <div class="item-row">
+                <p class="text-muted mb-0">No items in amber zone.</p>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Green Zone Items -->
+      <div class="row mb-4">
+        <div class="col-md-12">
+          <div class="card green-zone">
+            <div class="card-header" style="border: none; background: transparent; padding: 1rem;">
+              <h5 class="mb-0"><i class="bi bi-check-circle"></i> Green Zone - Stable Stock</h5>
+            </div>
+            <div class="card-body" style="padding: 0;">
+              {% for item in green_zone_items %}
+              <div class="item-row">
+                <div>
+                  <p class="mb-1"><strong>{{ item.name }}</strong></p>
+                  <small class="text-muted">{{ item.category }} • {{ item.quantity }} {{ item.unit }}</small>
+                </div>
+                <div>
+                  <span class="badge bg-success">Expires: {{ item.expiration_date }}</span>
+                  <button class="btn btn-sm btn-outline-success ms-2" onclick="removeItem('{{ item.name }}')">
+                    <i class="bi bi-trash"></i> Remove
+                  </button>
+                </div>
+              </div>
+              {% empty %}
+              <div class="item-row">
+                <p class="text-muted mb-0">No items in green zone.</p>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Item Section -->
+      <div class="row">
+        <div class="col-md-12">
+          <div class="card">
+            <div class="card-header bg-primary text-white">
+              <h5 class="mb-0"><i class="bi bi-plus-circle"></i> Add New Item</h5>
+            </div>
+            <div class="card-body">
+              <form method="post" action="{% url 'smart_pantry:dashboard_new' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="row">
+                  <div class="col-md-3">
+                    {{ quick_add_form.name }}
+                  </div>
+                  <div class="col-md-3">
+                    {{ quick_add_form.category }}
+                  </div>
+                  <div class="col-md-2">
+                    {{ quick_add_form.quantity }}
+                  </div>
+                  <div class="col-md-2">
+                    {{ quick_add_form.unit }}
+                  </div>
+                  <div class="col-md-2">
+                    <button type="submit" class="btn btn-success w-100"><i class="bi bi-plus"></i> Add</button>
+                  </div>
+                </div>
+                <div class="row mt-3">
+                  <div class="col-md-3">
+                    {{ quick_add_form.expiration_date }}
+                  </div>
+                  <div class="col-md-3">
+                    {{ quick_add_form.expiration_time }}
+                  </div>
+                  <div class="col-md-6"></div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      function removeItem(itemName) {
+        if (confirm(`Are you sure you want to remove "${itemName}"?`)) {
+          fetch("{% url 'smart_pantry:ajax_remove_item' %}", {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({ item_name: itemName })
+          }).then(response => response.json()).then(data => {
+            if (data.success) {
+              alert(data.message);
+              location.reload();
+            } else {
+              alert(data.message);
+            }
+          });
+        }
+      }
+
+      function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+          const cookies = document.cookie.split(';');
+          for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+              cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+              break;
+            }
+          }
+        }
+        return cookieValue;
+      }
+    </script>
+  </body>
+</html>

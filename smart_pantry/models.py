@@ -12,6 +12,7 @@ class PantryItem(models.Model):
     CATEGORY_MEAT = "Meat"
     CATEGORY_PANTRY = "Pantry"
     CATEGORY_FROZEN = "Frozen"
+    CATEGORY_SNACKS = "Snacks"
 
     CATEGORY_CHOICES = [
         (CATEGORY_PRODUCE, "Produce"),
@@ -19,6 +20,7 @@ class PantryItem(models.Model):
         (CATEGORY_MEAT, "Meat"),
         (CATEGORY_PANTRY, "Pantry"),
         (CATEGORY_FROZEN, "Frozen"),
+        (CATEGORY_SNACKS, "Snacks"),
     ]
 
     UNIT_GRAMS = "g"
@@ -39,6 +41,7 @@ class PantryItem(models.Model):
         "meat": 5,
         "pantry": 30,
         "frozen": 90,
+        "snacks": 20,
         "leafy greens": 5,
         "eggs": 21,
         "bread": 5,
@@ -46,6 +49,9 @@ class PantryItem(models.Model):
         "chicken": 5,
         "beef": 5,
         "rice": 365,
+        "chips": 30,
+        "cookies": 30,
+        "nuts": 60,
     }
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
