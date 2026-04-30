@@ -1,0 +1,815 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Smart Pantry Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.5/font/bootstrap-icons.min.css" />
+  </head>
+  <body class="bg-light" style="background-color: #e8f5e8 !important;">
+    <div class="container py-4">
+      <div class="d-flex flex-column flex-md-row justify-content-between align-items-start mb-4 gap-3">
+        <div>
+          <h1 class="h3 mb-1">Smart Pantry</h1>
+          <p class="text-muted mb-0">Track food, reduce waste, and use first based on freshness.</p>
+        </div>
+        <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 w-100 w-md-auto mt-3 mt-md-0">
+          <form method="get" class="d-flex align-items-center gap-2" role="search">
+            <div class="input-group">
+              <input name="q" value="{{ query }}" class="form-control" type="search" placeholder="Search pantry or use voice assistant" aria-label="Search">
+              <button class="btn btn-primary" type="submit">Search</button>
+            </div>
+          </form>
+          <div class="d-flex align-items-center gap-2">
+            <button type="button" id="voice-btn" class="btn btn-outline-primary">
+              <i class="bi bi-mic"></i> Voice Assistant
+            </button>
+            <button type="button" id="scan-btn" class="btn btn-outline-info">
+              <i class="bi bi-qr-code-scan"></i> Scan QR
+            </button>
+            <select id="language-select" class="form-select w-auto">
+              <option value="en-US" selected>English</option>
+              <option value="hi-IN">Hindi</option>
+              <option value="te-IN">Telugu</option>
+            </select>
+            {% if request.user.is_authenticated %}
+              <a href="{% url 'smart_pantry:account' %}" class="btn btn-outline-success">Account</a>
+              <a href="{% url 'smart_pantry:logout' %}" class="btn btn-outline-secondary">Logout</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="mb-4">
+        <small class="text-muted">Use the AI voice assistant in English, Hindi, or Telugu to add or remove pantry items.</small>
+      </div>
+
+      <div class="row g-4 mb-4">
+        <div class="col-lg-5">
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h2 class="card-title h5">Quick Add</h2>
+              <form method="post" enctype="multipart/form-data" novalidate>
+                {% csrf_token %}
+                {% for field in quick_add_form %}
+                  <div class="mb-3" {% if field.name == 'qr_code_data' %}style="display:none;"{% endif %}>
+                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                      <div class="invalid-feedback d-block">{{ field.errors|striptags }}</div>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+                <div class="d-flex gap-2 flex-wrap">
+                  <button type="submit" class="btn btn-success">Add Item</button>
+                  <button type="button" class="btn btn-outline-secondary" id="camera-upload-btn">Use Camera/Gallery</button>
+                </div>
+                <div id="voice-status" class="mt-2 text-muted small" style="display: none;"></div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-7">
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h2 class="card-title h5">Use First Priority</h2>
+              <p class="text-muted">Items are grouped by expiration urgency to help you choose what to eat first.</p>
+              <div class="row gy-3">
+                <div class="col-12 col-sm-4">
+                  <div class="p-3 rounded-3 bg-danger bg-opacity-10">
+                    <h3 class="fs-6 text-danger">Red Zone</h3>
+                    <p class="mb-0 fw-semibold" id="red-count">{{ expired_items.count }}</p>
+                    <small class="text-muted">Expiring within 48 hours</small>
+                  </div>
+                </div>
+                <div class="col-12 col-sm-4">
+                  <div class="p-3 rounded-3 bg-warning bg-opacity-10">
+                    <h3 class="fs-6 text-warning">Amber Zone</h3>
+                    <p class="mb-0 fw-semibold" id="amber-count">{{ expiring_soon_items.count }}</p>
+                    <small class="text-muted">Expiring in 3-5 days</small>
+                  </div>
+                </div>
+                <div class="col-12 col-sm-4">
+                  <div class="p-3 rounded-3 bg-success bg-opacity-10">
+                    <h3 class="fs-6 text-success">Green Zone</h3>
+                    <p class="mb-0 fw-semibold" id="green-count">{{ good_to_go_items.count }}</p>
+                    <small class="text-muted">Stable inventory</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row gy-4">
+        <div class="col-lg-4">
+          <h3 class="h6 mb-3">Red Zone</h3>
+          <div id="red-zone">
+          {% if expired_items %}
+            {% for item in expired_items %}
+              <div class="card mb-3 border-danger shadow-sm">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                      <h4 class="h6 mb-1">{{ item.name }}</h4>
+                      <small class="text-muted">{{ item.category }} · {{ item.quantity }} {{ item.unit }}</small>
+                    </div>
+                    <div class="d-flex gap-1">
+                      <span class="badge bg-danger">Expired</span>
+                      <button type="button" class="btn btn-sm btn-outline-danger remove-item-btn" data-item-id="{{ item.pk }}" data-item-name="{{ item.name }}">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                  <p class="mb-1">Expired {{ item.expiration_date }}</p>
+                  <div class="progress" style="height: 0.5rem;">
+                    <div class="progress-bar bg-danger" role="progressbar" style="width: {{ item.expiration_progress }}%"></div>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="alert alert-secondary">No items in red zone. Great job!</div>
+          {% endif %}
+          </div>
+        </div>
+
+        <div class="col-lg-4">
+          <h3 class="h6 mb-3">Amber Zone</h3>
+          <div id="amber-zone">
+          {% if expiring_soon_items %}
+            {% for item in expiring_soon_items %}
+              <div class="card mb-3 border-warning shadow-sm">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                      <h4 class="h6 mb-1">{{ item.name }}</h4>
+                      <small class="text-muted">{{ item.category }} · {{ item.quantity }} {{ item.unit }}</small>
+                    </div>
+                    <div class="d-flex gap-1">
+                      <span class="badge bg-warning text-dark">{{ item.status }}</span>
+                      <button type="button" class="btn btn-sm btn-outline-danger remove-item-btn" data-item-id="{{ item.pk }}" data-item-name="{{ item.name }}">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                  <p class="mb-1">Expires in {{ item.days_until_expiration }} day{{ item.days_until_expiration|pluralize }}</p>
+                  <div class="progress" style="height: 0.5rem;">
+                    <div class="progress-bar bg-warning" role="progressbar" style="width: {{ item.expiration_progress }}%"></div>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="alert alert-secondary">No items in amber zone.</div>
+          {% endif %}
+          </div>
+        </div>
+
+        <div class="col-lg-4">
+          <h3 class="h6 mb-3">Green Zone</h3>
+          <div id="green-zone">
+          {% if good_to_go_items %}
+            {% for item in good_to_go_items %}
+              <div class="card mb-3 border-success shadow-sm">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                      <h4 class="h6 mb-1">{{ item.name }}</h4>
+                      <small class="text-muted">{{ item.category }} · {{ item.quantity }} {{ item.unit }}</small>
+                    </div>
+                    <div class="d-flex gap-1">
+                      <span class="badge bg-success">{{ item.status }}</span>
+                      <button type="button" class="btn btn-sm btn-outline-danger remove-item-btn" data-item-id="{{ item.pk }}" data-item-name="{{ item.name }}">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                  <p class="mb-1">Expires in {{ item.days_until_expiration }} day{{ item.days_until_expiration|pluralize }}</p>
+                  <div class="progress" style="height: 0.5rem;">
+                    <div class="progress-bar bg-success" role="progressbar" style="width: {{ item.expiration_progress }}%"></div>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="alert alert-secondary">No items in green zone.</div>
+          {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="scanner-modal" class="position-fixed top-0 start-0 vw-100 vh-100 bg-dark bg-opacity-75 d-none align-items-center justify-content-center" style="z-index: 1050;">
+      <div class="bg-white rounded-4 overflow-hidden shadow-lg" style="width: 100%; max-width: 720px;">
+        <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-secondary text-white">
+          <span>QR Scanner</span>
+          <button type="button" class="btn btn-sm btn-light" id="close-scanner">Close</button>
+        </div>
+        <div class="p-3">
+          <video id="qr-video" class="w-100 rounded-3 border" playsinline></video>
+          <canvas id="qr-canvas" hidden></canvas>
+          <div class="mt-3 d-flex gap-2 flex-wrap">
+            <button class="btn btn-primary" id="start-scanner" type="button">Start Camera</button>
+            <button class="btn btn-outline-secondary" id="stop-scanner" type="button">Stop Camera</button>
+            <label class="btn btn-outline-primary mb-0">
+              Upload QR Image <input type="file" id="qr-file-input" accept="image/*" hidden>
+            </label>
+          </div>
+          <p id="scanner-status" class="mt-2 text-muted small">Point your camera at a QR code to scan the product.</p>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script>
+      const voiceBtn = document.getElementById('voice-btn');
+      const voiceStatus = document.getElementById('voice-status');
+      const languageSelect = document.getElementById('language-select');
+      const nameField = document.getElementById('id_name');
+      const categoryField = document.getElementById('id_category');
+      const quantityField = document.getElementById('id_quantity');
+      let recognition = null;
+      let isListening = false;
+
+      // Language configurations
+      const languages = {
+        'en-US': {
+          name: 'English',
+          welcome: 'Voice assistant ready. Say "add" or "remove" followed by item details.',
+          listening: 'Listening...',
+          processing: 'Processing your request...',
+          added: 'Added: ',
+          removed: 'Removed: ',
+          notFound: 'Item not found: ',
+          error: 'Sorry, I didn\'t understand. Try saying "add 2 apples produce" or "remove milk"',
+          addKeywords: ['add', 'insert', 'put', 'new'],
+          removeKeywords: ['remove', 'delete', 'take out', 'eliminate'],
+          categoryMap: {
+            'produce': 'Produce',
+            'fruit': 'Produce',
+            'vegetable': 'Produce',
+            'dairy': 'Dairy',
+            'milk': 'Dairy',
+            'cheese': 'Dairy',
+            'meat': 'Meat',
+            'chicken': 'Meat',
+            'beef': 'Meat',
+            'fish': 'Meat',
+            'pantry': 'Pantry',
+            'bread': 'Pantry',
+            'rice': 'Pantry',
+            'pasta': 'Pantry',
+            'frozen': 'Frozen',
+            'ice cream': 'Frozen'
+          }
+        },
+        'hi-IN': {
+          name: 'Hindi',
+          welcome: 'वॉइस असिस्टेंट तैयार है। "जोड़ें" या "हटाएं" कहें उसके बाद आइटम का विवरण बताएं।',
+          listening: 'सुन रहा हूं...',
+          processing: 'आपका अनुरोध प्रोसेस कर रहा हूं...',
+          added: 'जोड़ा गया: ',
+          removed: 'हटाया गया: ',
+          notFound: 'आइटम नहीं मिला: ',
+          error: '"2 सेब जोड़ें उत्पाद" या "दूध हटाएं" कहने की कोशिश करें',
+          addKeywords: ['जोड़ें', 'जोड़ो', 'डालो', 'नया', 'add', 'put'],
+          removeKeywords: ['हटाएं', 'हटाओ', 'मिटाओ', 'निकालो', 'remove', 'delete'],
+          categoryMap: {
+            'उत्पाद': 'Produce',
+            'फल': 'Produce',
+            'सब्जी': 'Produce',
+            'दुग्ध': 'Dairy',
+            'दूध': 'Dairy',
+            'चीज': 'Dairy',
+            'मांस': 'Meat',
+            'चिकन': 'Meat',
+            'बीफ': 'Meat',
+            'मछली': 'Meat',
+            'पैंट्री': 'Pantry',
+            'रोटी': 'Pantry',
+            'चावल': 'Pantry',
+            'पास्ता': 'Pantry',
+            'फ्रोजन': 'Frozen',
+            'आइसक्रीम': 'Frozen'
+          }
+        },
+        'te-IN': {
+          name: 'Telugu',
+          welcome: 'వాయిస్ అసిస్టెంట్ సిద్ధంగా ఉంది. "జోడించు" లేదా "తొలగించు" అని చెప్పి దాని తర్వాత ఐటమ్ వివరాలు చెప్పండి.',
+          listening: 'విన్నాను...',
+          processing: 'మీ అభ్యర్థనను ప్రాసెస్ చేస్తున్నాను...',
+          added: 'జోడించబడింది: ',
+          removed: 'తొలగించబడింది: ',
+          notFound: 'ఐటమ్ కనుగొనబడలేదు: ',
+          error: '"2 అప్పళ్ళు జోడించు ఉత్పత్తి" లేదా "పాలు తొలగించు" అని చెప్పడానికి ప్రయత్నించండి',
+          addKeywords: ['జోడించు', 'పెట్టు', 'కొత్త', 'add', 'put'],
+          removeKeywords: ['తొలగించు', 'తీసివేయి', 'డిలీట్', 'remove', 'delete'],
+          categoryMap: {
+            'ఉత్పత్తి': 'Produce',
+            'పండు': 'Produce',
+            'కూరగాయ': 'Produce',
+            'పాలు': 'Dairy',
+            'చీజ్': 'Dairy',
+            'మాంసం': 'Meat',
+            'కోడి': 'Meat',
+            'గోమాంసం': 'Meat',
+            'చేప': 'Meat',
+            'ప్యాంట్రీ': 'Pantry',
+            'రొట్టె': 'Pantry',
+            'వరిగా': 'Pantry',
+            'పాస్తా': 'Pantry',
+            'ఫ్రోజెన్': 'Frozen',
+            'ఐస్ క్రీమ్': 'Frozen'
+          }
+        }
+      };
+
+      // Initialize speech synthesis
+      let synth = null;
+      if ('speechSynthesis' in window) {
+        synth = window.speechSynthesis;
+      }
+
+      function speak(text, lang = null) {
+        if (!synth) return;
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        if (lang) {
+          utterance.lang = lang;
+        }
+
+        // Set voice based on language
+        const voices = synth.getVoices();
+        if (lang && voices.length > 0) {
+          const langVoices = voices.filter(voice => voice.lang.startsWith(lang.split('-')[0]));
+          if (langVoices.length > 0) {
+            utterance.voice = langVoices[0];
+          }
+        }
+
+        synth.speak(utterance);
+      }
+
+      function getCurrentLanguage() {
+        return languages[languageSelect.value];
+      }
+
+      // Initialize speech recognition
+      function initSpeechRecognition() {
+        if (!languageSelect) return;
+
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+          recognition = new SpeechRecognition();
+          recognition.continuous = false;
+          recognition.interimResults = false;
+          recognition.lang = languageSelect.value;
+
+          recognition.onstart = function() {
+            isListening = true;
+            voiceBtn.innerHTML = '<i class="bi bi-mic-fill text-danger"></i> ' + getCurrentLanguage().listening;
+            voiceBtn.classList.add('btn-danger');
+            voiceBtn.classList.remove('btn-outline-primary');
+            voiceStatus.textContent = getCurrentLanguage().listening;
+            voiceStatus.style.display = 'block';
+            voiceStatus.style.color = 'blue';
+          };
+
+          recognition.onresult = function(event) {
+            const transcript = event.results[0][0].transcript.toLowerCase();
+            voiceStatus.textContent = getCurrentLanguage().processing;
+            voiceStatus.style.color = 'orange';
+
+            setTimeout(() => {
+              processVoiceCommand(transcript);
+            }, 500);
+          };
+
+          recognition.onerror = function(event) {
+            voiceStatus.textContent = getCurrentLanguage().error;
+            voiceStatus.style.color = 'red';
+            speak(getCurrentLanguage().error, languageSelect.value);
+            resetVoiceButton();
+          };
+
+          recognition.onend = function() {
+            isListening = false;
+            resetVoiceButton();
+          };
+        } else {
+          voiceBtn.disabled = true;
+          voiceBtn.innerHTML = '<i class="bi bi-mic-mute"></i> Voice Not Supported';
+          voiceStatus.textContent = 'Voice recognition not supported in this browser';
+          voiceStatus.style.display = 'block';
+          voiceStatus.style.color = 'orange';
+        }
+      }
+
+      function resetVoiceButton() {
+        const lang = getCurrentLanguage();
+        voiceBtn.innerHTML = '<i class="bi bi-mic"></i> Voice Assistant';
+        voiceBtn.classList.remove('btn-danger');
+        voiceBtn.classList.add('btn-outline-primary');
+        setTimeout(() => {
+          voiceStatus.style.display = 'none';
+        }, 3000);
+      }
+
+      function processVoiceCommand(transcript) {
+        const lang = getCurrentLanguage();
+        const originalTranscript = transcript;
+
+        // Check for add or remove commands
+        const isAdd = lang.addKeywords.some(keyword => transcript.includes(keyword));
+        const isRemove = lang.removeKeywords.some(keyword => transcript.includes(keyword));
+
+        if (!isAdd && !isRemove) {
+          voiceStatus.textContent = lang.error;
+          voiceStatus.style.color = 'red';
+          speak(lang.error, languageSelect.value);
+          return;
+        }
+
+        // Remove command keywords from transcript
+        lang.addKeywords.concat(lang.removeKeywords).forEach(keyword => {
+          transcript = transcript.replace(keyword, '').trim();
+        });
+
+        if (isAdd) {
+          // Parse add command
+          const result = parseAddCommand(transcript, lang);
+          if (result) {
+            // Fill form and submit
+            nameField.value = result.name;
+            categoryField.value = result.category;
+            quantityField.value = result.quantity;
+
+            // Auto-submit the form
+            setTimeout(() => {
+              document.querySelector('form[method="post"]').submit();
+            }, 1000);
+
+            const message = `${lang.added}${result.quantity} ${result.name} (${result.category})`;
+            voiceStatus.textContent = message;
+            voiceStatus.style.color = 'green';
+            speak(message, languageSelect.value);
+          } else {
+            voiceStatus.textContent = lang.error;
+            voiceStatus.style.color = 'red';
+            speak(lang.error, languageSelect.value);
+          }
+        } else if (isRemove) {
+          const itemName = parseRemoveCommand(transcript, lang);
+          if (itemName) {
+            removeItemByName(itemName).then(response => {
+              if (response.success) {
+                const message = `${lang.removed}${itemName}`;
+                voiceStatus.textContent = message;
+                voiceStatus.style.color = 'orange';
+                speak(message, languageSelect.value);
+
+                setTimeout(() => {
+                  window.location.reload();
+                }, 1200);
+              } else {
+                const message = response.message || `${lang.notFound}${itemName}`;
+                voiceStatus.textContent = message;
+                voiceStatus.style.color = 'red';
+                speak(message, languageSelect.value);
+              }
+            }).catch(() => {
+              const message = `${lang.notFound}${itemName}`;
+              voiceStatus.textContent = message;
+              voiceStatus.style.color = 'red';
+              speak(message, languageSelect.value);
+            });
+          } else {
+            const message = `${lang.notFound}${transcript}`;
+            voiceStatus.textContent = message;
+            voiceStatus.style.color = 'red';
+            speak(message, languageSelect.value);
+          }
+        }
+      }
+
+      function parseAddCommand(transcript, lang) {
+        const words = transcript.split(' ');
+        let quantity = 1;
+        let itemName = '';
+        let category = '';
+
+        // Extract quantity (first number found)
+        for (let i = 0; i < words.length; i++) {
+          if (!isNaN(words[i]) && words[i].trim() !== '') {
+            quantity = parseFloat(words[i]);
+            words.splice(i, 1);
+            break;
+          }
+        }
+
+        // Look for category keywords
+        for (let i = 0; i < words.length; i++) {
+          const word = words[i].toLowerCase();
+          if (lang.categoryMap[word]) {
+            category = lang.categoryMap[word];
+            words.splice(i, 1);
+            break;
+          }
+        }
+
+        // Remaining words are the item name
+        itemName = words.join(' ').trim();
+
+        // Capitalize first letter of each word
+        itemName = itemName.replace(/\b\w/g, l => l.toUpperCase());
+
+        if (itemName) {
+          if (!category) {
+            category = 'Pantry';
+          }
+          return { name: itemName, category: category, quantity: quantity };
+        }
+
+        return null;
+      }
+
+      function parseRemoveCommand(transcript, lang) {
+        const itemName = transcript.trim().replace(/\b\w/g, l => l.toUpperCase());
+        return itemName || null;
+      }
+
+      function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+          const cookies = document.cookie.split(';');
+          for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+              cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+              break;
+            }
+          }
+        }
+        return cookieValue;
+      }
+
+      async function removeItemByName(itemName) {
+        const response = await fetch("{% url 'smart_pantry:ajax_remove_item' %}", {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: JSON.stringify({ item_name: itemName })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Unable to remove item.' }));
+          return { success: false, message: errorData.message || 'Unable to remove item.' };
+        }
+
+        return response.json();
+      }
+
+      // Event listeners
+      if (voiceBtn) {
+        voiceBtn.addEventListener('click', function() {
+          if (!isListening) {
+            initSpeechRecognition();
+            if (recognition) {
+              recognition.start();
+            }
+          }
+        });
+      }
+
+      if (languageSelect) {
+        languageSelect.addEventListener('change', function() {
+          if (recognition) {
+            recognition.lang = languageSelect.value;
+          }
+          const lang = getCurrentLanguage();
+          speak(lang.welcome, languageSelect.value);
+          voiceStatus.textContent = lang.welcome;
+          voiceStatus.style.display = 'block';
+          voiceStatus.style.color = 'green';
+          setTimeout(() => {
+            voiceStatus.style.display = 'none';
+          }, 3000);
+        });
+      }
+
+      // Initialize on page load
+      document.addEventListener('DOMContentLoaded', function() {
+        initSpeechRecognition();
+        if (languageSelect) {
+          const lang = getCurrentLanguage();
+          speak(lang.welcome, languageSelect.value);
+        }
+
+        // Add event listeners for remove buttons
+        document.addEventListener('click', function(e) {
+          if (e.target.classList.contains('remove-item-btn') || e.target.closest('.remove-item-btn')) {
+            const btn = e.target.classList.contains('remove-item-btn') ? e.target : e.target.closest('.remove-item-btn');
+            const itemId = btn.getAttribute('data-item-id');
+            const itemName = btn.getAttribute('data-item-name');
+
+            if (confirm(`Remove ${itemName}?`)) {
+              removeItem(itemId, itemName);
+            }
+          }
+        });
+      });
+
+      function removeItem(itemId, itemName) {
+        const formData = new FormData();
+        formData.append('remove_item', '1');
+        formData.append('item_id', itemId);
+
+        fetch(window.location.href, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+          }
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Remove the item card from DOM
+            const itemCard = document.querySelector(`[data-item-id="${itemId}"]`).closest('.card');
+            itemCard.remove();
+
+            // Update zone counts
+            updateZoneCounts();
+
+            // Show success message
+            showMessage(data.message, 'success');
+          } else {
+            showMessage(data.message, 'error');
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          showMessage('Error removing item', 'error');
+        });
+      }
+
+      function updateZoneCounts() {
+        // Update the zone counts after item removal
+        const redItems = document.querySelectorAll('#red-zone .card').length;
+        const amberItems = document.querySelectorAll('#amber-zone .card').length;
+        const greenItems = document.querySelectorAll('#green-zone .card').length;
+
+        document.querySelector('#red-count').textContent = redItems;
+        document.querySelector('#amber-count').textContent = amberItems;
+        document.querySelector('#green-count').textContent = greenItems;
+      }
+
+      function showMessage(message, type) {
+        voiceStatus.textContent = message;
+        voiceStatus.style.display = 'block';
+        voiceStatus.style.color = type === 'success' ? 'green' : 'red';
+        setTimeout(() => {
+          voiceStatus.style.display = 'none';
+        }, 3000);
+      }
+
+      const scanBtn = document.getElementById('scan-btn');
+      const scannerModal = document.getElementById('scanner-modal');
+      const closeScannerBtn = document.getElementById('close-scanner');
+      const startScannerBtn = document.getElementById('start-scanner');
+      const stopScannerBtn = document.getElementById('stop-scanner');
+      const qrVideo = document.getElementById('qr-video');
+      const qrCanvas = document.getElementById('qr-canvas');
+      const qrFileInput = document.getElementById('qr-file-input');
+      const scannerStatus = document.getElementById('scanner-status');
+      let scannerStream = null;
+      let scanInterval = null;
+
+      function openScanner() {
+        scannerModal.classList.remove('d-none');
+        scannerStatus.textContent = 'Point your camera at a QR code to scan.';
+      }
+
+      function closeScanner() {
+        scannerModal.classList.add('d-none');
+        stopScanner();
+      }
+
+      async function startScanner() {
+        try {
+          scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+          qrVideo.srcObject = scannerStream;
+          await qrVideo.play();
+          scanInterval = setInterval(scanFrame, 300);
+          scannerStatus.textContent = 'Scanning for QR code...';
+        } catch (error) {
+          scannerStatus.textContent = 'Camera access denied or unavailable.';
+        }
+      }
+
+      function stopScanner() {
+        if (scanInterval) {
+          clearInterval(scanInterval);
+          scanInterval = null;
+        }
+        if (scannerStream) {
+          scannerStream.getTracks().forEach(track => track.stop());
+          scannerStream = null;
+        }
+        if (qrVideo.srcObject) {
+          qrVideo.srcObject = null;
+        }
+      }
+
+      function scanFrame() {
+        if (!qrVideo.videoWidth || !qrVideo.videoHeight) return;
+        qrCanvas.width = qrVideo.videoWidth;
+        qrCanvas.height = qrVideo.videoHeight;
+        const ctx = qrCanvas.getContext('2d');
+        ctx.drawImage(qrVideo, 0, 0, qrVideo.videoWidth, qrVideo.videoHeight);
+        const imageData = ctx.getImageData(0, 0, qrVideo.videoWidth, qrVideo.videoHeight);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (code) {
+          handleQrValue(code.data);
+        }
+      }
+
+      function decodeQRCodeFromFile(file) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          const img = new Image();
+          img.onload = function() {
+            qrCanvas.width = img.width;
+            qrCanvas.height = img.height;
+            const ctx = qrCanvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, img.width, img.height);
+            const imageData = ctx.getImageData(0, 0, img.width, img.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            if (code) {
+              handleQrValue(code.data);
+            } else {
+              scannerStatus.textContent = 'QR code not found in image.';
+            }
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function handleQrValue(value) {
+        scannerStatus.textContent = `QR code detected: ${value}`;
+        const qrField = document.getElementById('id_qr_code_data');
+        if (qrField) {
+          qrField.value = value;
+        }
+        const parts = value.split('|');
+        if (parts.length > 0) {
+          if (nameField) nameField.value = parts[0];
+        }
+        if (parts.length > 1) {
+          if (categoryField) categoryField.value = parts[1];
+        }
+        if (parts.length > 2) {
+          if (quantityField) quantityField.value = parts[2];
+        }
+        if (parts.length > 3) {
+          const unitField = document.getElementById('id_unit');
+          if (unitField) unitField.value = parts[3];
+        }
+        setTimeout(() => {
+          closeScanner();
+          showMessage('QR code loaded into the add form.', 'success');
+        }, 800);
+      }
+
+      if (scanBtn) {
+        scanBtn.addEventListener('click', openScanner);
+      }
+      if (closeScannerBtn) {
+        closeScannerBtn.addEventListener('click', closeScanner);
+      }
+      if (startScannerBtn) {
+        startScannerBtn.addEventListener('click', startScanner);
+      }
+      if (stopScannerBtn) {
+        stopScannerBtn.addEventListener('click', stopScanner);
+      }
+      if (qrFileInput) {
+        qrFileInput.addEventListener('change', function(event) {
+          const file = event.target.files[0];
+          if (file) {
+            decodeQRCodeFromFile(file);
+          }
+        });
+      }
+    </script>
+  </body>
+</html>
