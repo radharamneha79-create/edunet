@@ -270,6 +270,13 @@
             'chips': 'Snacks',
             'cookies': 'Snacks',
             'nuts': 'Snacks'
+          },
+          navKeywords: {
+            dashboard: ['dashboard', 'overview', 'analytics', 'stats'],
+            settings: ['settings', 'preferences', 'plan and save', 'plan', 'save'],
+            home: ['home', 'main page', 'start page'],
+            expiryAlerts: ['expiry alerts', 'expiring soon', 'expiring items', 'expiry alert'],
+            addScan: ['scan', 'scan qr', 'add and scan', 'scan and add']
           }
         },
         'hi-IN': {
@@ -304,6 +311,13 @@
             'चिप्स': 'Snacks',
             'कुकीज': 'Snacks',
             'मेवे': 'Snacks'
+          },
+          navKeywords: {
+            dashboard: ['dashboard', 'ओवरव्यू', 'आंकड़े', 'स्टैट्स'],
+            settings: ['सेटिंग्स', 'पसंद', 'योजना और बचत', 'योजना', 'बचत'],
+            home: ['होम', 'मुख पृष्ठ', 'प्रारंभ पृष्ठ'],
+            expiryAlerts: ['समाप्ति चेतावनी', 'जल्द समाप्त हो रहा', 'समाप्ति आइटम'],
+            addScan: ['स्कैन', 'क्यूआर स्कैन', 'जोड़ें और स्कैन']
           }
         },
         'te-IN': {
@@ -335,8 +349,13 @@
             'ఐస్ క్రీమ్': 'Frozen',
             'స్నాక్స్': 'Snacks',
             'చిప్‍్స్': 'Snacks',
-            'కుకీలు': 'Snacks'
-          }
+            'కుకీలు': 'Snacks'          },
+          navKeywords: {
+            dashboard: ['dashboard', 'ఓవెర్వ్యూ', 'స్టాట్స్', 'ఆనలిటిక్స్'],
+            settings: ['సెట్టింగ్‌లు', 'ఇష్టాలు', 'ప్లాన్ అండ్ సేవ్', 'ప్లాన్', 'సేవ్'],
+            home: ['హోమ్', 'ప్రధాన పేజీ', 'స్టార్ట్ పేజీ'],
+            expiryAlerts: ['ఎక్స్పైరీ అలర్ట్స్', 'త్వరలో గడువు ముగియబోతున్నవి', 'ఎక్స్పైరీ ఐటమ్స్'],
+            addScan: ['స్కాన్', 'క్యూ ఆర్ స్కాన్', 'జోడించు మరియు స్కాన్']          }
         }
       };
 
@@ -431,9 +450,40 @@
         }, 3000);
       }
 
+      function getNavigationCommand(transcript, lang) {
+        const nav = lang.navKeywords || {};
+        if (nav.addScan && nav.addScan.some(keyword => transcript.includes(keyword))) {
+          return { url: '{% url 'smart_pantry:dashboard' %}', message: 'Opening add and scan.' };
+        }
+        if (nav.expiryAlerts && nav.expiryAlerts.some(keyword => transcript.includes(keyword))) {
+          return { url: '{% url 'smart_pantry:dashboard_new' %}', message: 'Opening expiry alerts.' };
+        }
+        if (nav.dashboard && nav.dashboard.some(keyword => transcript.includes(keyword))) {
+          return { url: '{% url 'smart_pantry:dashboard_new' %}', message: 'Opening dashboard.' };
+        }
+        if (nav.settings && nav.settings.some(keyword => transcript.includes(keyword))) {
+          return { url: '{% url 'smart_pantry:settings' %}', message: 'Opening settings.' };
+        }
+        if (nav.home && nav.home.some(keyword => transcript.includes(keyword))) {
+          return { url: '{% url 'smart_pantry:home' %}', message: 'Opening home page.' };
+        }
+        return null;
+      }
+
       function processVoiceCommand(transcript) {
         const lang = getCurrentLanguage();
         const originalTranscript = transcript;
+
+        const navigation = getNavigationCommand(transcript, lang);
+        if (navigation) {
+          voiceStatus.textContent = navigation.message;
+          voiceStatus.style.color = 'green';
+          speak(navigation.message, languageSelect.value);
+          setTimeout(() => {
+            window.location.href = navigation.url;
+          }, 1000);
+          return;
+        }
 
         // Check for add or remove commands
         const isAdd = lang.addKeywords.some(keyword => transcript.includes(keyword));
@@ -509,14 +559,13 @@
       }
 
       function parseAddCommand(transcript, lang) {
-        const words = transcript.split(/\s+/);
+        let words = transcript.split(/\s+/).map(word => word.trim()).filter(Boolean);
         let quantity = 1;
         let itemName = '';
         let category = '';
-        
-        // Map for unit conversions
+
         const unitMap = {
-          'liter': 'g', 'liters': 'g', 'l': 'g', 'lt': 'g',
+          'liter': 'g', 'liters': 'g', 'ltr': 'g', 'l': 'g',
           'cup': 'count', 'cups': 'count',
           'piece': 'count', 'pieces': 'count', 'pcs': 'count',
           'kilogram': 'kg', 'kilograms': 'kg', 'kg': 'kg', 'kilo': 'kg',
@@ -524,44 +573,50 @@
           'ounce': 'oz', 'ounces': 'oz', 'oz': 'oz'
         };
 
-        // Extract quantity with unit modifiers (e.g., "2 liters of", "3 cups of")
-        for (let i = 0; i < words.length - 1; i++) {
+        // Extract quantity and unit phrases
+        for (let i = 0; i < words.length; i++) {
           const num = parseFloat(words[i]);
           if (!isNaN(num) && num > 0) {
             quantity = num;
-            
-            // Check for unit modifiers
-            const nextWord = words[i + 1].toLowerCase();
-            if (unitMap[nextWord]) {
-              // Remove quantity and unit from words
+            if (words[i + 1] && unitMap[words[i + 1].toLowerCase()]) {
               words.splice(i, 2);
-              break;
-            } else if (words[i + 2] && words[i + 2].toLowerCase() === 'of') {
-              // Handle "2 liters of milk"
-              words.splice(i, 3);
-              break;
+            } else if (words[i + 1] && words[i + 1].toLowerCase() === 'of') {
+              words.splice(i, 2);
             } else {
-              // Just remove the quantity
               words.splice(i, 1);
+            }
+            break;
+          }
+        }
+
+        // Detect category using prepositions like to/in/for/from
+        const prepositions = ['to', 'in', 'for', 'from', 'into'];
+        for (let i = 0; i < words.length - 1; i++) {
+          if (prepositions.includes(words[i].toLowerCase())) {
+            const nextWord = words[i + 1].toLowerCase();
+            if (lang.categoryMap[nextWord]) {
+              category = lang.categoryMap[nextWord];
+              words.splice(i, 2);
               break;
             }
           }
         }
 
-        // Look for category keywords
+        // Look for category keywords anywhere else in the phrase
         for (let i = 0; i < words.length; i++) {
           const word = words[i].toLowerCase();
           if (lang.categoryMap[word]) {
-            category = lang.categoryMap[word];
+            category = category || lang.categoryMap[word];
             words.splice(i, 1);
             break;
           }
         }
 
-        // Remaining words are the item name
-        itemName = words.join(' ').trim();
+        // Remove filler words
+        const fillerWords = ['of', 'the', 'some', 'a', 'an', 'my', 'please', 'item', 'items'];
+        words = words.filter(word => !fillerWords.includes(word.toLowerCase()));
 
-        // Capitalize first letter of each word
+        itemName = words.join(' ').trim();
         itemName = itemName.replace(/\b\w/g, l => l.toUpperCase());
 
         if (itemName) {
